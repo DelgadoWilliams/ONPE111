@@ -73,7 +73,7 @@ const Reportes = () => {
         tamaño: '1.8 MB',
         formato: 'Excel',
         estado: 'Disponible',
-        endpoint: '/estadisticas/votos-por-distrito',
+        endpoint: '/api/estadisticas/votos-por-distrito',
         icono: MapPin
       },
       {
@@ -85,7 +85,7 @@ const Reportes = () => {
         tamaño: '3.2 MB',
         formato: 'PDF',
         estado: 'Disponible',
-        endpoint: '/estadisticas/votos-por-distrito/presidencial',
+        endpoint: '/api/estadisticas/votos-por-distrito/presidencial',
         icono: TrendingUp
       },
       {
@@ -97,7 +97,7 @@ const Reportes = () => {
         tamaño: '2.9 MB',
         formato: 'PDF',
         estado: 'Disponible',
-        endpoint: '/estadisticas/votos-por-distrito/regional',
+        endpoint: '/api/estadisticas/votos-por-distrito/regional',
         icono: BarChart3
       },
       {
@@ -109,7 +109,7 @@ const Reportes = () => {
         tamaño: '2.1 MB',
         formato: 'PDF',
         estado: 'Disponible',
-        endpoint: '/estadisticas/votos-por-distrito/distrital',
+        endpoint: '/api/estadisticas/votos-por-distrito/distrital',
         icono: MapPin
       },
     ];
