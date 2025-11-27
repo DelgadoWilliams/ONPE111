@@ -6,7 +6,7 @@ import autoTable from 'jspdf-autotable';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 import html2canvas from 'html2canvas';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const Reportes = () => {
   const [filtroTipo, setFiltroTipo] = useState('todos');
