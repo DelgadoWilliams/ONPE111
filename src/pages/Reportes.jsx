@@ -30,7 +30,7 @@ const Reportes = () => {
       setLoading(true);
 
       // Cargar estadísticas del dashboard
-      const respStats = await fetch(`${API_URL}/estadisticas/dashboard`);
+      const respStats = await fetch(`${API_URL}/api/estadisticas/dashboard`);
       const dataStats = await respStats.json();
 
       if (dataStats.success) {
@@ -61,7 +61,7 @@ const Reportes = () => {
         tamaño: '2.4 MB',
         formato: 'PDF',
         estado: 'Disponible',
-        endpoint: '/estadisticas/dashboard',
+        endpoint: '/api/estadisticas/dashboard',
         icono: Users
       },
       {
@@ -279,7 +279,7 @@ const Reportes = () => {
     };
 
     // Contenido según el tipo de reporte
-    if (reporte.endpoint === '/estadisticas/dashboard') {
+    if (reporte.endpoint === '/api/estadisticas/dashboard') {
       // Reporte de Dashboard
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
@@ -871,7 +871,7 @@ const Reportes = () => {
 
               {/* Contenido del Modal */}
               <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
-                {datosVistaPrevia && reporteActual?.endpoint === '/estadisticas/dashboard' && (
+                {datosVistaPrevia && reporteActual?.endpoint === '/api/estadisticas/dashboard' && (
                   <VistaPreviaDashboard data={datosVistaPrevia.data} />
                 )}
 
