@@ -8,15 +8,16 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { estadisticasAPI } from '../services/api';
-
 const Visualizacion = () => {
   const [activeChart, setActiveChart] = useState('barras');
-  const [electionType, setElectionType] = useState('presidencial');
+  const [electionType, setElectionType] = useState('todos');
   const [loading, setLoading] = useState(false);
   const [estadisticas, setEstadisticas] = useState(null);
+  const [votosPorDistrito, setVotosPorDistrito] = useState([]);
 
   // Opciones del selector de elección
   const electionOptions = [
+    { value: 'todos', label: 'Todos', icon: Vote },
     { value: 'presidencial', label: 'Presidencial', icon: Vote },
     { value: 'regional', label: 'Regional', icon: MapPin },
     { value: 'distrital', label: 'Distrital', icon: Users },
@@ -29,22 +30,86 @@ const Visualizacion = () => {
     cargarDatos();
   }, []);
 
+  // ✅ AGREGAR ESTE NUEVO useEffect
+  useEffect(() => {
+    if (estadisticas) { // Solo cargar si ya hay datos generales
+      cargarVotosPorDistrito();
+    }
+  }, [electionType]);
+
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const response = await estadisticasAPI.getDashboard();
+      const response = await estadisticasAPI.getDashboard(); // ← API REAL
 
       if (response.data && response.data.success) {
         const data = response.data.data;
         setEstadisticas(data);
+        await cargarVotosPorDistrito();
       }
     } catch (error) {
       console.error('Error cargando datos:', error);
-      // Datos por defecto en caso de error
       setEstadisticas({
         total_votantes: 0,
         votos: { presidencial: 0, regional: 0, distrital: 0, total: 0 }
       });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Cargar votos por distrito
+  const cargarVotosPorDistrito = async () => {
+    try {
+      setLoading(true);
+
+      // Usar endpoint con filtro
+      const response = await estadisticasAPI.getVotosPorDistritoFiltrado(electionType);
+
+      if (response.data && response.data.success) {
+        const distritosData = response.data.data;
+        const totalVotos = response.data.total_votos || distritosData.reduce((sum, d) => sum + d.votos, 0);
+
+        // Validar que haya datos
+        if (!distritosData || distritosData.length === 0) {
+          console.warn('No hay datos de distritos para este tipo de elección');
+          setVotosPorDistrito([]);
+          return;
+        }
+
+        // Obtener los top 5 distritos
+        const topDistritos = distritosData
+          .slice(0, 5)
+          .map((d, idx) => ({
+            name: d.distrito,
+            value: parseFloat(((d.votos / totalVotos) * 100).toFixed(1)),
+            votos: d.votos,
+            color: ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981'][idx]
+          }));
+
+        // Agrupar el resto como "Otros"
+        const otrosVotos = distritosData
+          .slice(5)
+          .reduce((sum, d) => sum + d.votos, 0);
+
+        if (otrosVotos > 0) {
+          topDistritos.push({
+            name: 'Otros',
+            value: parseFloat(((otrosVotos / totalVotos) * 100).toFixed(1)),
+            votos: otrosVotos,
+            color: '#94a3b8'
+          });
+        }
+
+        setVotosPorDistrito(topDistritos);
+        console.log(`✅ Cargados ${topDistritos.length} distritos para: ${electionType}`);
+      } else {
+        console.warn('Respuesta sin datos válidos');
+        setVotosPorDistrito([]);
+      }
+    } catch (error) {
+      console.error('Error cargando votos por distrito:', error);
+      setVotosPorDistrito([]);
     } finally {
       setLoading(false);
     }
@@ -80,35 +145,17 @@ const Visualizacion = () => {
   // GRÁFICO 3: Tendencia de actividad reciente
   const dataTendencia = estadisticas?.actividad_reciente ?
     estadisticas.actividad_reciente.map((act, idx) => {
-      // Extraer tipo de voto del action
       const tipo = act.action.includes('Presidencial') ? 'Presidencial' :
         act.action.includes('Regional') ? 'Regional' : 'Distrital';
       return {
         mes: `Actividad ${idx + 1}`,
         tipo: tipo,
-        registros: idx + 1 // Contador simple
+        registros: idx + 1
       };
     }) : [];
 
-  // GRÁFICO 4: Porcentajes por tipo de elección (para gráfico circular)
-  const totalVotos = estadisticas?.votos?.total || 1;
-  const dataPie = estadisticas ? [
-    {
-      name: 'Presidencial',
-      value: parseFloat(((estadisticas.votos?.presidencial || 0) / totalVotos * 100).toFixed(1)),
-      color: '#6366f1'
-    },
-    {
-      name: 'Regional',
-      value: parseFloat(((estadisticas.votos?.regional || 0) / totalVotos * 100).toFixed(1)),
-      color: '#8b5cf6'
-    },
-    {
-      name: 'Distrital',
-      value: parseFloat(((estadisticas.votos?.distrital || 0) / totalVotos * 100).toFixed(1)),
-      color: '#ec4899'
-    },
-  ] : [];
+  // GRÁFICO 4: Datos del gráfico circular (por distrito)
+  const dataPie = votosPorDistrito;
 
   const chartTypes = [
     { id: 'barras', name: 'Gráfico de Barras', icon: '📊' },
@@ -240,39 +287,39 @@ const Visualizacion = () => {
       className="grid grid-cols-1 lg:grid-cols-2 gap-6"
     >
       <motion.div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Distribución Porcentual por Tipo de Voto</h3>
-        <ResponsiveContainer width="100%" height={380}>
-          <PieChart>
-            <Pie
-              data={dataPie}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={({ name, value }) => `${name}: ${value}%`}
-              outerRadius={130}
-              fill="#8884d8"
-              dataKey="value"
-            >
-              {dataPie.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip />
-          </PieChart>
-        </ResponsiveContainer>
+        <h3 className="text-lg font-bold text-gray-800 mb-4">Distribución Porcentual por Distrito</h3>
+        {dataPie.length > 0 ? (
+          <ResponsiveContainer width="100%" height={380}>
+            <PieChart>
+              <Pie
+                data={dataPie}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, value }) => `${name}: ${value}%`}
+                outerRadius={130}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {dataPie.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center h-96 text-gray-400">
+            <p>Cargando datos de distritos...</p>
+          </div>
+        )}
       </motion.div>
 
       <motion.div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Detalle por Tipo de Elección</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-4">Detalle por Distrito</h3>
         <div className="space-y-3">
-          {dataPie.map((item, index) => {
-            const votosPorTipo = {
-              'Presidencial': estadisticas?.votos?.presidencial || 0,
-              'Regional': estadisticas?.votos?.regional || 0,
-              'Distrital': estadisticas?.votos?.distrital || 0
-            };
-
-            return (
+          {dataPie.length > 0 ? (
+            dataPie.map((item, index) => (
               <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                 <div className="flex items-center gap-3">
                   <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }}></div>
@@ -281,12 +328,16 @@ const Visualizacion = () => {
                 <div className="text-right">
                   <p className="font-bold text-gray-800">{item.value}%</p>
                   <p className="text-xs text-gray-600">
-                    {votosPorTipo[item.name]?.toLocaleString() || 0} votos
+                    {item.votos?.toLocaleString() || 0} votos
                   </p>
                 </div>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            <div className="text-center text-gray-400 py-8">
+              <p>No hay datos disponibles</p>
+            </div>
+          )}
         </div>
       </motion.div>
     </motion.div>

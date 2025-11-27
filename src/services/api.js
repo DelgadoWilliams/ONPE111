@@ -73,9 +73,13 @@ export const votosDistritalesAPI = {
 // ============================================
 // ESTADÍSTICAS
 // ============================================
+// ✅ CORRECTO - Con /api/ al inicio
 export const estadisticasAPI = {
-    getPorTipo: (tipo) => api.get(`/api/estadisticas/${tipo}`), // presidencial, regional, distrital
+    getDashboard: () => api.get('/api/estadisticas/dashboard'),
     getGeneral: () => api.get('/api/estadisticas/general'),
+    getVotosPorDistrito: () => api.get('/api/estadisticas/votos-por-distrito'),
+    getVotosPorDistritoFiltrado: (tipoEleccion) => 
+        api.get(`/api/estadisticas/votos-por-distrito/${tipoEleccion}`), // ✅ NUEVO
 };
 
 // ============================================

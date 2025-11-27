@@ -317,27 +317,6 @@ const AnalisisEstadistico = () => {
         animate={{ opacity: 1 }}
         className="space-y-6"
       >
-        {/* Botón de entrenamiento */}
-        <motion.button
-          onClick={entrenarModelo}
-          disabled={entrenando}
-          className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transition-all"
-          whileHover={{ scale: entrenando ? 1 : 1.02 }}
-          whileTap={{ scale: entrenando ? 1 : 0.98 }}
-        >
-          {entrenando ? (
-            <span className="flex items-center justify-center gap-2">
-              <RefreshCw className="animate-spin" size={20} />
-              Entrenando modelo de {electionType}...
-            </span>
-          ) : (
-            <span className="flex items-center justify-center gap-2">
-              <Play size={20} />
-              Entrenar Modelo {electionType.charAt(0).toUpperCase() + electionType.slice(1)}
-            </span>
-          )}
-        </motion.button>
-
         {/* Mostrar modelo si existe */}
         {modeloActual ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
