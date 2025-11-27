@@ -15,7 +15,7 @@ const Reportes = () => {
   const [modalVistaPrevia, setModalVistaPrevia] = useState(false);
   const [datosVistaPrevia, setDatosVistaPrevia] = useState(null);
   const [reporteActual, setReporteActual] = useState(null);
-  
+
   // Estados para datos reales
   const [estadisticas, setEstadisticas] = useState(null);
   const [reportesGenerados, setReportesGenerados] = useState([]);
@@ -28,19 +28,19 @@ const Reportes = () => {
   const cargarDatos = async () => {
     try {
       setLoading(true);
-      
+
       // Cargar estadísticas del dashboard
       const respStats = await fetch(`${API_URL}/estadisticas/dashboard`);
       const dataStats = await respStats.json();
-      
+
       if (dataStats.success) {
         setEstadisticas(dataStats.data);
-        
+
         // Generar lista de reportes disponibles basados en datos reales
         const reportes = generarReportesDisponibles(dataStats.data);
         setReportesGenerados(reportes);
       }
-      
+
       setError(null);
     } catch (err) {
       console.error('Error cargando datos:', err);
@@ -112,43 +112,31 @@ const Reportes = () => {
         endpoint: '/estadisticas/votos-por-distrito/distrital',
         icono: MapPin
       },
-      {
-        id: 6,
-        nombre: 'Reporte de Calidad de Datos',
-        tipo: 'Auditoría',
-        descripcion: 'Análisis de integridad y limpieza de datos',
-        fecha: new Date().toISOString().split('T')[0],
-        tamaño: '1.5 MB',
-        formato: 'PDF',
-        estado: 'Disponible',
-        endpoint: '/upload/analyze',
-        icono: AlertCircle
-      }
     ];
-    
+
     return reportes;
   };
 
   const descargarReporte = async (reporte) => {
     try {
       console.log(`Descargando reporte: ${reporte.nombre}`);
-      
+
       // Hacer fetch al endpoint correspondiente
       const response = await fetch(`${API_URL}${reporte.endpoint}`);
       const data = await response.json();
-      
+
       // Mostrar mensaje de carga
       const loadingAlert = document.createElement('div');
       loadingAlert.className = 'fixed top-4 right-4 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 flex items-center gap-2';
       loadingAlert.innerHTML = '<div class="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></div> Generando PDF con gráficos...';
       document.body.appendChild(loadingAlert);
-      
+
       // Generación de PDF
       await generarPDF(reporte, data);
-      
+
       // Remover mensaje de carga
       document.body.removeChild(loadingAlert);
-      
+
       alert(`✅ Reporte "${reporte.nombre}" descargado exitosamente`);
     } catch (err) {
       console.error('Error descargando reporte:', err);
@@ -158,33 +146,138 @@ const Reportes = () => {
 
   const generarPDF = async (reporte, data) => {
     const doc = new jsPDF();
-    
+
     // Configuración de fuente y colores
     const colorPrimario = [71, 85, 105]; // slate-600
     const colorSecundario = [148, 163, 184]; // slate-400
-    
+
     // Encabezado
     doc.setFillColor(...colorPrimario);
     doc.rect(0, 0, 210, 40, 'F');
-    
+
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(24);
     doc.setFont('helvetica', 'bold');
     doc.text('Sistema Electoral ONPE', 105, 20, { align: 'center' });
-    
+
     doc.setFontSize(14);
     doc.setFont('helvetica', 'normal');
     doc.text(reporte.nombre, 105, 32, { align: 'center' });
-    
+
     // Información del reporte
     doc.setTextColor(0, 0, 0);
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.text(`Fecha de generación: ${new Date().toLocaleString('es-PE')}`, 14, 50);
     doc.text(`Tipo: ${reporte.tipo}`, 14, 56);
-    
+
     let yPos = 70;
-    
+
+    const generarGraficoComoImagen = async (tipo, datos) => {
+      return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 800;
+        canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+
+        if (tipo === 'barras') {
+          // Dibujar gráfico de barras manualmente
+          const padding = 60;
+          const barWidth = (canvas.width - padding * 2) / datos.length;
+          const maxValue = Math.max(...datos.map(d => d.cantidad || d.votos || d.value));
+          const heightRatio = (canvas.height - padding * 2) / maxValue;
+
+          // Fondo blanco
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Título
+          ctx.fillStyle = '#1f2937';
+          ctx.font = 'bold 20px Arial';
+          ctx.fillText('Distribución de Votos por Tipo', 20, 30);
+
+          // Dibujar barras
+          datos.forEach((item, index) => {
+            const x = padding + index * barWidth;
+            const valor = item.cantidad || item.votos || item.value || 0;
+            const barHeight = valor * heightRatio;
+            const y = canvas.height - padding - barHeight;
+
+            // Barra
+            ctx.fillStyle = '#475569';
+            ctx.fillRect(x + 5, y, barWidth - 10, barHeight);
+
+            // Etiqueta
+            ctx.fillStyle = '#1f2937';
+            ctx.font = '12px Arial';
+            ctx.save();
+            ctx.translate(x + barWidth / 2, canvas.height - 20);
+            ctx.rotate(-Math.PI / 4);
+            ctx.fillText(item.rango || item.name || item.distrito || 'N/A', 0, 0);
+            ctx.restore();
+
+            // Valor
+            ctx.fillStyle = '#1f2937';
+            ctx.font = 'bold 14px Arial';
+            ctx.fillText(valor.toLocaleString(), x + barWidth / 2 - 20, y - 5);
+          });
+
+        } else if (tipo === 'pie') {
+          // Dibujar gráfico circular manualmente
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          const radius = Math.min(centerX, centerY) - 60;
+
+          // Fondo blanco
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          // Título
+          ctx.fillStyle = '#1f2937';
+          ctx.font = 'bold 20px Arial';
+          ctx.fillText('Proporción de Votos', 20, 30);
+
+          const colores = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#94a3b8'];
+          const total = datos.reduce((sum, d) => sum + (d.votos || d.cantidad || d.value || 0), 0);
+
+          let currentAngle = -Math.PI / 2;
+
+          datos.forEach((item, index) => {
+            const valor = item.votos || item.cantidad || item.value || 0;
+            const sliceAngle = (valor / total) * 2 * Math.PI;
+
+            // Dibujar sector
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = colores[index % colores.length];
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Etiqueta y porcentaje
+            const midAngle = currentAngle + sliceAngle / 2;
+            const labelX = centerX + Math.cos(midAngle) * (radius + 40);
+            const labelY = centerY + Math.sin(midAngle) * (radius + 40);
+
+            ctx.fillStyle = '#1f2937';
+            ctx.font = 'bold 12px Arial';
+            const porcentaje = ((valor / total) * 100).toFixed(1);
+            const label = `${item.name || item.rango || 'N/A'}: ${porcentaje}%`;
+            ctx.fillText(label, labelX - 30, labelY);
+
+            currentAngle += sliceAngle;
+          });
+        }
+
+        // Convertir canvas a imagen
+        const imgData = canvas.toDataURL('image/png', 1.0);
+        resolve(imgData);
+      });
+    };
+
     // Contenido según el tipo de reporte
     if (reporte.endpoint === '/estadisticas/dashboard') {
       // Reporte de Dashboard
@@ -193,7 +286,7 @@ const Reportes = () => {
       doc.setTextColor(...colorPrimario);
       doc.text('Resumen Ejecutivo', 14, yPos);
       yPos += 10;
-      
+
       const stats = data.data;
       const tableData = [
         ['Total de Votantes', stats.total_votantes.toLocaleString()],
@@ -204,13 +297,13 @@ const Reportes = () => {
         ['Votos Distritales', stats.votos.distrital.toLocaleString()],
         ['Total de Votos', stats.votos.total.toLocaleString()]
       ];
-      
+
       autoTable(doc, {
         startY: yPos,
         head: [['Indicador', 'Valor']],
         body: tableData,
         theme: 'grid',
-        headStyles: { 
+        headStyles: {
           fillColor: colorPrimario,
           fontSize: 12,
           fontStyle: 'bold'
@@ -223,69 +316,67 @@ const Reportes = () => {
           fillColor: [248, 250, 252]
         }
       });
-      
+
       yPos = doc.lastAutoTable.finalY + 15;
-      
-      // Capturar gráfico de barras
+
+      // 🎨 GENERAR GRÁFICOS DIRECTAMENTE DESDE DATOS
       try {
         doc.addPage();
         doc.setFontSize(16);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(...colorPrimario);
         doc.text('Gráficos de Análisis', 14, 20);
-        
-        const chartBarElement = document.querySelector('#chart-votos-tipo');
-        if (chartBarElement) {
-          const canvas = await html2canvas(chartBarElement, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-            logging: false
-          });
-          const imgData = canvas.toDataURL('image/png');
+
+        // Preparar datos para los gráficos
+        const dataVotos = [
+          { rango: 'Presidencial', cantidad: stats.votos.presidencial },
+          { rango: 'Regional', cantidad: stats.votos.regional },
+          { rango: 'Distrital', cantidad: stats.votos.distrital }
+        ];
+
+        console.log('📊 Generando gráfico de barras desde datos...');
+        const chartBarImg = await generarGraficoComoImagen('barras', dataVotos);
+        if (chartBarImg) {
           doc.text('Distribución de Votos por Tipo', 14, 35);
-          doc.addImage(imgData, 'PNG', 14, 40, 180, 90);
+          doc.addImage(chartBarImg, 'PNG', 14, 40, 180, 90);
+          console.log('✅ Gráfico de barras agregado');
         }
-        
-        // Capturar gráfico de pastel
-        const chartPieElement = document.querySelector('#chart-votos-pie');
-        if (chartPieElement) {
-          const canvas = await html2canvas(chartPieElement, {
-            scale: 2,
-            backgroundColor: '#ffffff',
-            logging: false
-          });
-          const imgData = canvas.toDataURL('image/png');
+
+        console.log('📊 Generando gráfico circular desde datos...');
+        const chartPieImg = await generarGraficoComoImagen('pie', dataVotos);
+        if (chartPieImg) {
           doc.text('Proporción de Votos', 14, 145);
-          doc.addImage(imgData, 'PNG', 14, 150, 180, 90);
+          doc.addImage(chartPieImg, 'PNG', 14, 150, 180, 90);
+          console.log('✅ Gráfico circular agregado');
         }
-        
+
         yPos = 250;
       } catch (error) {
-        console.log('No se pudo capturar los gráficos:', error);
+        console.log('Error generando gráficos:', error);
       }
-      
+
       // Actividad Reciente
       if (stats.actividad_reciente && stats.actividad_reciente.length > 0) {
         doc.addPage();
         yPos = 20;
-        
+
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
         doc.text('Actividad Reciente', 14, yPos);
         yPos += 8;
-        
+
         const actividadData = stats.actividad_reciente.slice(0, 5).map(act => [
           act.action,
           act.time,
           act.status
         ]);
-        
+
         autoTable(doc, {
           startY: yPos,
           head: [['Acción', 'Fecha/Hora', 'Estado']],
           body: actividadData,
           theme: 'striped',
-          headStyles: { 
+          headStyles: {
             fillColor: colorPrimario,
             fontSize: 10
           },
@@ -295,7 +386,7 @@ const Reportes = () => {
           }
         });
       }
-      
+
     } else if (reporte.endpoint.includes('votos-por-distrito')) {
       // Reporte de Distribución Geográfica
       doc.setFontSize(16);
@@ -303,20 +394,20 @@ const Reportes = () => {
       doc.setTextColor(...colorPrimario);
       doc.text('Distribución de Votos por Distrito', 14, yPos);
       yPos += 10;
-      
+
       if (data.data && data.data.length > 0) {
         const distritosData = data.data.slice(0, 20).map((item, index) => [
           (index + 1).toString(),
           item.distrito,
           item.votos.toLocaleString()
         ]);
-        
+
         autoTable(doc, {
           startY: yPos,
           head: [['#', 'Distrito', 'Votos']],
           body: distritosData,
           theme: 'grid',
-          headStyles: { 
+          headStyles: {
             fillColor: colorPrimario,
             fontSize: 11,
             fontStyle: 'bold'
@@ -334,32 +425,31 @@ const Reportes = () => {
             2: { cellWidth: 40, halign: 'right' }
           }
         });
-        
+
         yPos = doc.lastAutoTable.finalY + 15;
-        
-        // Capturar gráfico de distritos
+
+        // 🎨 GENERAR GRÁFICO DE DISTRITOS DESDE DATOS
         try {
           doc.addPage();
           doc.setFontSize(16);
           doc.setFont('helvetica', 'bold');
           doc.setTextColor(...colorPrimario);
           doc.text('Visualización Gráfica', 14, 20);
-          
-          const chartDistritosElement = document.querySelector('#chart-distritos-bar');
-          if (chartDistritosElement) {
-            const canvas = await html2canvas(chartDistritosElement, {
-              scale: 2,
-              backgroundColor: '#ffffff',
-              logging: false
-            });
-            const imgData = canvas.toDataURL('image/png');
+
+          // Usar los primeros 10 distritos
+          const top10 = data.data.slice(0, 10);
+
+          console.log('📊 Generando gráfico de distritos desde datos...');
+          const chartDistritosImg = await generarGraficoComoImagen('barras', top10);
+          if (chartDistritosImg) {
             doc.text('Top 10 Distritos con Más Votos', 14, 35);
-            doc.addImage(imgData, 'PNG', 14, 40, 180, 120);
+            doc.addImage(chartDistritosImg, 'PNG', 14, 40, 180, 120);
+            console.log('✅ Gráfico de distritos agregado');
           }
         } catch (error) {
-          console.log('No se pudo capturar el gráfico de distritos:', error);
+          console.log('Error generando gráfico de distritos:', error);
         }
-        
+
         // Resumen en nueva página
         if (doc.internal.getCurrentPageInfo().pageNumber > 1) {
           yPos = 180;
@@ -367,12 +457,12 @@ const Reportes = () => {
           doc.addPage();
           yPos = 20;
         }
-        
+
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text('Resumen:', 14, yPos);
         yPos += 7;
-        
+
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text(`Total de distritos: ${data.total_distritos}`, 14, yPos);
@@ -380,7 +470,7 @@ const Reportes = () => {
         doc.text(`Total de votos: ${data.total_votos?.toLocaleString() || 'N/A'}`, 14, yPos);
       }
     }
-    
+
     // Pie de página
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
@@ -399,7 +489,7 @@ const Reportes = () => {
         doc.internal.pageSize.height - 10
       );
     }
-    
+
     // Guardar PDF
     doc.save(`${reporte.nombre.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`);
   };
@@ -408,7 +498,7 @@ const Reportes = () => {
     try {
       const response = await fetch(`${API_URL}${reporte.endpoint}`);
       const data = await response.json();
-      
+
       setDatosVistaPrevia(data);
       setReporteActual(reporte);
       setModalVistaPrevia(true);
@@ -431,8 +521,8 @@ const Reportes = () => {
     { id: 'Auditoría', nombre: 'Auditoría', count: reportesGenerados.filter(r => r.tipo === 'Auditoría').length },
   ];
 
-  const reportesFiltrados = filtroTipo === 'todos' 
-    ? reportesGenerados 
+  const reportesFiltrados = filtroTipo === 'todos'
+    ? reportesGenerados
     : reportesGenerados.filter(r => r.tipo === filtroTipo);
 
   // Animaciones
@@ -505,7 +595,7 @@ const Reportes = () => {
           <AlertCircle className="text-red-600 mx-auto mb-4" size={48} />
           <h3 className="text-xl font-bold text-gray-800 mb-2">Error al Cargar Reportes</h3>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button 
+          <button
             onClick={cargarDatos}
             className="px-6 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700"
           >
@@ -517,14 +607,14 @@ const Reportes = () => {
   }
 
   return (
-    <motion.div 
+    <motion.div
       className="space-y-6"
       initial="hidden"
       animate="visible"
       variants={containerVariants}
     >
       {/* Header */}
-      <motion.div 
+      <motion.div
         variants={itemVariants}
         className="bg-gradient-to-r from-slate-600 to-slate-700 p-6 rounded-xl shadow-lg text-white"
       >
@@ -535,7 +625,7 @@ const Reportes = () => {
               {estadisticas?.total_votantes.toLocaleString()} votantes | {estadisticas?.votos.total.toLocaleString()} votos registrados
             </p>
           </div>
-          <motion.button 
+          <motion.button
             onClick={cargarDatos}
             className="flex items-center gap-2 px-6 py-3 bg-white text-slate-600 rounded-lg hover:bg-gray-100 transition-colors font-medium"
             variants={buttonVariants}
@@ -551,38 +641,38 @@ const Reportes = () => {
       {/* Estadísticas de Reportes */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { 
-            icon: FileText, 
-            color: 'slate', 
-            title: 'Total Reportes', 
-            value: reportesGenerados.length.toString(), 
-            bgColor: 'slate' 
+          {
+            icon: FileText,
+            color: 'slate',
+            title: 'Total Reportes',
+            value: reportesGenerados.length.toString(),
+            bgColor: 'slate'
           },
-          { 
-            icon: Users, 
-            color: 'green', 
-            title: 'Total Votantes', 
-            value: estadisticas?.total_votantes.toLocaleString() || '0', 
-            bgColor: 'green' 
+          {
+            icon: Users,
+            color: 'green',
+            title: 'Total Votantes',
+            value: estadisticas?.total_votantes.toLocaleString() || '0',
+            bgColor: 'green'
           },
-          { 
-            icon: TrendingUp, 
-            color: 'blue', 
-            title: 'Votos Procesados', 
-            value: `${estadisticas?.datos_procesados.toFixed(1) || '0'}%`, 
-            bgColor: 'blue' 
+          {
+            icon: TrendingUp,
+            color: 'blue',
+            title: 'Votos Procesados',
+            value: `${estadisticas?.datos_procesados.toFixed(1) || '0'}%`,
+            bgColor: 'blue'
           },
-          { 
-            icon: BarChart3, 
-            color: 'purple', 
-            title: 'Total Votos', 
-            value: estadisticas?.votos.total.toLocaleString() || '0', 
-            bgColor: 'purple' 
+          {
+            icon: BarChart3,
+            color: 'purple',
+            title: 'Total Votos',
+            value: estadisticas?.votos.total.toLocaleString() || '0',
+            bgColor: 'purple'
           }
         ].map((stat, index) => {
           const Icon = stat.icon;
           return (
-            <motion.div 
+            <motion.div
               key={index}
               className="bg-white p-6 rounded-xl shadow-sm border border-gray-200"
               variants={itemVariants}
@@ -609,7 +699,7 @@ const Reportes = () => {
       </div>
 
       {/* Filtros */}
-      <motion.div 
+      <motion.div
         variants={cardVariants}
         className="bg-white rounded-xl shadow-sm border border-gray-200 p-4"
       >
@@ -620,11 +710,10 @@ const Reportes = () => {
             <motion.button
               key={tipo.id}
               onClick={() => setFiltroTipo(tipo.id)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filtroTipo === tipo.id
-                  ? 'bg-slate-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filtroTipo === tipo.id
+                ? 'bg-slate-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               variants={buttonVariants}
               whileHover="hover"
               whileTap="tap"
@@ -636,7 +725,7 @@ const Reportes = () => {
       </motion.div>
 
       {/* Lista de Reportes */}
-      <motion.div 
+      <motion.div
         variants={cardVariants}
         className="bg-white rounded-xl shadow-sm border border-gray-200"
       >
@@ -665,7 +754,7 @@ const Reportes = () => {
               reportesFiltrados.map((reporte, index) => {
                 const IconoReporte = reporte.icono || FileText;
                 return (
-                  <motion.div 
+                  <motion.div
                     key={reporte.id}
                     variants={listItemVariants}
                     initial="hidden"
@@ -676,10 +765,9 @@ const Reportes = () => {
                     className="p-6 transition-colors"
                   >
                     <div className="flex items-start gap-4">
-                      <motion.div 
-                        className={`p-3 rounded-lg ${
-                          reporte.formato === 'PDF' ? 'bg-red-100' : 'bg-green-100'
-                        }`}
+                      <motion.div
+                        className={`p-3 rounded-lg ${reporte.formato === 'PDF' ? 'bg-red-100' : 'bg-green-100'
+                          }`}
                         whileHover={{ scale: 1.1, rotate: 5 }}
                       >
                         <IconoReporte className={
@@ -700,7 +788,7 @@ const Reportes = () => {
                               <span className="text-xs text-gray-500">Formato: {reporte.formato}</span>
                             </div>
                           </div>
-                          <motion.span 
+                          <motion.span
                             className="px-3 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800"
                             initial={{ scale: 0 }}
                             animate={{ scale: 1 }}
@@ -710,13 +798,13 @@ const Reportes = () => {
                           </motion.span>
                         </div>
 
-                        <motion.div 
+                        <motion.div
                           className="flex gap-2 mt-4"
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: "auto" }}
                           transition={{ duration: 0.3 }}
                         >
-                          <motion.button 
+                          <motion.button
                             onClick={() => descargarReporte(reporte)}
                             className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white hover:bg-slate-700 rounded-lg transition-colors text-sm"
                             variants={buttonVariants}
@@ -726,8 +814,8 @@ const Reportes = () => {
                             <Download size={16} />
                             Descargar
                           </motion.button>
-                          
-                          <motion.button 
+
+                          <motion.button
                             onClick={() => verVistaPrevia(reporte)}
                             className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors text-sm"
                             variants={buttonVariants}
@@ -851,7 +939,7 @@ const VistaPreviaDashboard = ({ data }) => {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="name" stroke="#6b7280" />
             <YAxis stroke="#6b7280" />
-            <Tooltip 
+            <Tooltip
               contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
               formatter={(value) => value.toLocaleString()}
             />
@@ -895,11 +983,10 @@ const VistaPreviaDashboard = ({ data }) => {
                   <p className="font-medium text-gray-800">{actividad.action}</p>
                   <p className="text-sm text-gray-600">{actividad.time}</p>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  actividad.status === 'success' 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-yellow-100 text-yellow-800'
-                }`}>
+                <span className={`px-3 py-1 rounded-full text-xs font-medium ${actividad.status === 'success'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-yellow-100 text-yellow-800'
+                  }`}>
                   {actividad.status}
                 </span>
               </div>
@@ -945,7 +1032,7 @@ const VistaPreviaDistritos = ({ data }) => {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis type="number" stroke="#6b7280" />
             <YAxis dataKey="distrito" type="category" width={120} stroke="#6b7280" />
-            <Tooltip 
+            <Tooltip
               contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '8px' }}
               formatter={(value) => value.toLocaleString()}
             />
@@ -975,7 +1062,7 @@ const VistaPreviaDistritos = ({ data }) => {
                   </div>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
                     style={{ width: `${porcentaje}%` }}
                   />
