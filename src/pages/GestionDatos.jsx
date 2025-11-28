@@ -21,10 +21,17 @@ const GestionDatos = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [paginaActual, setPaginaActual] = useState(1);
+  const registrosPorPagina = 10;
 
   useEffect(() => {
     cargarDatos();
   }, []);
+
+  // Resetear página cuando cambie la búsqueda o filtro
+  useEffect(() => {
+    setPaginaActual(1);
+  }, [terminoBusqueda, filtroTipo]);
 
   const cargarDatos = async () => {
     try {
@@ -54,7 +61,7 @@ const GestionDatos = () => {
         telefono: voto.votantes?.telefono || 'N/A',
         email: voto.votantes?.email || 'N/A',
         edad: voto.votantes?.edad || 'N/A',
-        votoPresidencial: voto.candidatos || null,  // ← objeto completo
+        votoPresidencial: voto.candidatos || null,
         fechaRegistro: voto.fecha_voto?.split('T')[0] || new Date().toISOString().split('T')[0],
         estado: 'Activo',
       }));
@@ -150,7 +157,7 @@ const GestionDatos = () => {
     }
   };
 
-  // Filtro
+  // Filtrado
   let datosFiltrados = filtroTipo === 'presidencial' ? datos.presidencial :
                        filtroTipo === 'regional' ? datos.regional : datos.distrital;
 
@@ -161,8 +168,14 @@ const GestionDatos = () => {
     row.email?.toLowerCase().includes(terminoBusqueda.toLowerCase())
   );
 
+  // Paginación
+  const totalPaginas = Math.ceil(filtrados.length / registrosPorPagina);
+  const indiceInicio = (paginaActual - 1) * registrosPorPagina;
+  const indiceFin = indiceInicio + registrosPorPagina;
+  const registrosActuales = filtrados.slice(indiceInicio, indiceFin);
+
   const handleSelectAll = (e) => {
-    setSelectedRows(e.target.checked ? filtrados.map(r => r.id) : []);
+    setSelectedRows(e.target.checked ? registrosActuales.map(r => r.id) : []);
   };
 
   const handleSelectRow = (id) => {
@@ -239,7 +252,7 @@ const GestionDatos = () => {
           <table className="w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left"><input type="checkbox" checked={selectedRows.length === filtrados.length && filtrados.length > 0} onChange={handleSelectAll} className="w-4 h-4 text-indigo-600 border-gray-300 rounded" /></th>
+                <th className="px-6 py-3 text-left"><input type="checkbox" checked={selectedRows.length === registrosActuales.length && registrosActuales.length > 0} onChange={handleSelectAll} className="w-4 h-4 text-indigo-600 border-gray-300 rounded" /></th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">DNI</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Nombre Completo</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Edad</th>
@@ -255,7 +268,7 @@ const GestionDatos = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filtrados.map(row => (
+              {registrosActuales.map(row => (
                 <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-6 py-4"><input type="checkbox" checked={selectedRows.includes(row.id)} onChange={() => handleSelectRow(row.id)} className="w-4 h-4 text-indigo-600 border-gray-300 rounded" /></td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-900">{row.dni}</td>
@@ -279,7 +292,55 @@ const GestionDatos = () => {
         </div>
 
         <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-          <p className="text-sm text-gray-700">Mostrando <span className="font-medium">1</span> a <span className="font-medium">{filtrados.length}</span> de <span className="font-medium">{filtrados.length}</span> registros</p>
+          <p className="text-sm text-gray-700">
+            Mostrando <span className="font-medium">{indiceInicio + 1}</span> a <span className="font-medium">{Math.min(indiceFin, filtrados.length)}</span> de <span className="font-medium">{filtrados.length}</span> registros
+          </p>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPaginaActual(prev => Math.max(1, prev - 1))}
+              disabled={paginaActual === 1}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Anterior
+            </button>
+            
+            <div className="flex items-center gap-1">
+              {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+                .filter(page => {
+                  if (totalPaginas <= 7) return true;
+                  if (page === 1 || page === totalPaginas) return true;
+                  if (page >= paginaActual - 1 && page <= paginaActual + 1) return true;
+                  return false;
+                })
+                .map((page, index, array) => (
+                  <>
+                    {index > 0 && array[index - 1] !== page - 1 && (
+                      <span key={`ellipsis-${page}`} className="px-2 text-gray-500">...</span>
+                    )}
+                    <button
+                      key={page}
+                      onClick={() => setPaginaActual(page)}
+                      className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        paginaActual === page
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  </>
+                ))}
+            </div>
+            
+            <button
+              onClick={() => setPaginaActual(prev => Math.min(totalPaginas, prev + 1))}
+              disabled={paginaActual === totalPaginas}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Siguiente
+            </button>
+          </div>
         </div>
       </motion.div>
     </motion.div>
